@@ -15,7 +15,11 @@ exports.handler = async (event) => {
   }
 
   // 로컬 HTML에서 key, x(경도), y(위도) 전달받음
-  const { key, x, y } = event.queryStringParameters || {};
+  const params = event.queryStringParameters || {};
+  // ASCII 범위(0-127) 문자만 허용하여 ByteString 오류 방지
+  const key = params.key ? params.key.replace(/[^\x00-\x7F]/g, "") : undefined;
+  const x = params.x;
+  const y = params.y;
 
   if (!key) {
     return {
