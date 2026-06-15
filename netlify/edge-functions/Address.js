@@ -38,4 +38,4 @@ export default async function handler(request) {
     }
 }
 
-export const config = { path: '/api/address' };
+export const config = { path: '/api/geocode' };
