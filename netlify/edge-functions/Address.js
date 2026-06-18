@@ -9,6 +9,37 @@ export default async function handler(request) {
         });
     }
 
+    const REGION1_FULL_NAME = {
+        '서울': '서울특별시',
+        '부산': '부산광역시',
+        '대구': '대구광역시',
+        '인천': '인천광역시',
+        '광주': '광주광역시',
+        '대전': '대전광역시',
+        '울산': '울산광역시',
+        '세종': '세종특별자치시',
+        '경기': '경기도',
+        '강원': '강원특별자치도',
+        '충북': '충청북도',
+        '충남': '충청남도',
+        '전북': '전북특별자치도',
+        '전남': '전라남도',
+        '경북': '경상북도',
+        '경남': '경상남도',
+        '제주': '제주특별자치도',
+    };
+    function fullRegion1(region1) {
+        if (!region1) return region1;
+        return REGION1_FULL_NAME[region1] || region1;
+    }
+    function fixFullAddress(fullAddr, region1Short, region1Full) {
+        if (!fullAddr || !region1Short || region1Short === region1Full) return fullAddr;
+        if (fullAddr.indexOf(region1Short) === 0) {
+            return region1Full + fullAddr.slice(region1Short.length);
+        }
+        return fullAddr;
+    }
+
     const url = new URL(request.url);
     const key = url.searchParams.get('key');
     const x   = url.searchParams.get('x');
@@ -38,25 +69,33 @@ export default async function handler(request) {
 
         const doc = data.documents[0];
 
-        const roadAddress = doc.road_address ? {
-            full:         doc.road_address.address_name,
-            region1:      doc.road_address.region_1depth_name,
-            region2:      doc.road_address.region_2depth_name,
-            region3:      doc.road_address.region_3depth_name,
-            roadName:     doc.road_address.road_name,
-            buildingNo:   doc.road_address.main_building_no + (doc.road_address.sub_building_no ? `-${doc.road_address.sub_building_no}` : ''),
-            buildingName: doc.road_address.building_name,
-            zoneNo:       doc.road_address.zone_no,
-        } : null;
+        const roadAddress = doc.road_address ? (() => {
+            const region1Short = doc.road_address.region_1depth_name;
+            const region1Full  = fullRegion1(region1Short);
+            return {
+                full:         fixFullAddress(doc.road_address.address_name, region1Short, region1Full),
+                region1:      region1Full,
+                region2:      doc.road_address.region_2depth_name,
+                region3:      doc.road_address.region_3depth_name,
+                roadName:     doc.road_address.road_name,
+                buildingNo:   doc.road_address.main_building_no + (doc.road_address.sub_building_no ? `-${doc.road_address.sub_building_no}` : ''),
+                buildingName: doc.road_address.building_name,
+                zoneNo:       doc.road_address.zone_no,
+            };
+        })() : null;
 
-        const jibunAddress = doc.address ? {
-            full:          doc.address.address_name,
-            region1:       doc.address.region_1depth_name,
-            region2:       doc.address.region_2depth_name,
-            region3:       doc.address.region_3depth_name,
-            mainAddressNo: doc.address.main_address_no,
-            subAddressNo:  doc.address.sub_address_no,
-        } : null;
+        const jibunAddress = doc.address ? (() => {
+            const region1Short = doc.address.region_1depth_name;
+            const region1Full  = fullRegion1(region1Short);
+            return {
+                full:          fixFullAddress(doc.address.address_name, region1Short, region1Full),
+                region1:       region1Full,
+                region2:       doc.address.region_2depth_name,
+                region3:       doc.address.region_3depth_name,
+                mainAddressNo: doc.address.main_address_no,
+                subAddressNo:  doc.address.sub_address_no,
+            };
+        })() : null;
 
         return new Response(JSON.stringify({
             road_address:  roadAddress,
