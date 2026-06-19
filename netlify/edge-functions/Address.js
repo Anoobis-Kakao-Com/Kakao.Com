@@ -28,16 +28,24 @@ export default async function handler(request) {
         '경남': '경상남도',
         '제주': '제주특별자치도',
     };
+
     function fullRegion1(region1) {
         if (!region1) return region1;
         return REGION1_FULL_NAME[region1] || region1;
     }
+
     function fixFullAddress(fullAddr, region1Short, region1Full) {
         if (!fullAddr || !region1Short || region1Short === region1Full) return fullAddr;
         if (fullAddr.indexOf(region1Short) === 0) {
             return region1Full + fullAddr.slice(region1Short.length);
         }
         return fullAddr;
+    }
+
+    function buildJibunStr(jibunAddress) {
+        if (!jibunAddress) return null;
+        const no = jibunAddress.mainAddressNo + (jibunAddress.subAddressNo ? `-${jibunAddress.subAddressNo}` : '');
+        return (jibunAddress.region3 && no) ? `${jibunAddress.region3} ${no}` : null;
     }
 
     const url = new URL(request.url);
@@ -97,10 +105,61 @@ export default async function handler(request) {
             };
         })() : null;
 
+        const jibunStr = buildJibunStr(jibunAddress);
+
+        if (roadAddress) {
+            const buildingName = roadAddress.buildingName || null;
+            let display_line2 = null;
+
+            if (jibunStr) {
+                display_line2 = buildingName
+                    ? `< ${buildingName} - ${jibunStr} >`
+                    : `< ${jibunStr} >`;
+            }
+
+            return new Response(JSON.stringify({
+                road_address:  roadAddress,
+                jibun_address: jibunAddress,
+                display:       roadAddress.full,
+                display_line2: display_line2,
+            }), { status: 200, headers: HEADERS });
+        }
+
+        const jibunFull = jibunAddress?.full || null;
+
+        try {
+            const searchRes = await fetch(
+                `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(jibunFull)}&analyze_type=similar`,
+                { headers: { 'Authorization': `KakaoAK ${key.replace(/[^\x00-\x7F]/g, '')}` } }
+            );
+
+            if (searchRes.ok) {
+                const searchData = await searchRes.json();
+                const hit = searchData.documents && searchData.documents.find(function(d) {
+                    return d.road_address && d.road_address.road_name;
+                });
+
+                if (hit && hit.road_address) {
+                    const r1Short = hit.road_address.region_1depth_name;
+                    const r1Full  = fullRegion1(r1Short);
+                    const roadOnly = `${r1Full} ${hit.road_address.region_2depth_name} ${hit.road_address.road_name}`.trim();
+                    const display_line2 = jibunStr ? `< ${jibunStr} >` : null;
+
+                    return new Response(JSON.stringify({
+                        road_address:  roadAddress,
+                        jibun_address: jibunAddress,
+                        display:       roadOnly,
+                        display_line2: display_line2,
+                    }), { status: 200, headers: HEADERS });
+                }
+            }
+        } catch (_) {}
+
         return new Response(JSON.stringify({
-            road_address:  roadAddress,
+            road_address:  null,
             jibun_address: jibunAddress,
-            display:       roadAddress ? roadAddress.full : jibunAddress?.full,
+            display:       jibunFull,
+            display_line2: null,
         }), { status: 200, headers: HEADERS });
 
     } catch (e) {
