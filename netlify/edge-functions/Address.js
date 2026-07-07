@@ -1,3 +1,20 @@
+import { getStore } from "@netlify/blobs";
+
+const LATEST_KEY = "latest";
+
+async function saveLatestAddress(payload) {
+    try {
+        const store = getStore("geocode-cache");
+        await store.setJSON(LATEST_KEY, {
+            ...payload,
+            savedAt: Date.now(),
+        });
+    } catch (e) {
+        // 저장 실패는 원래 응답 흐름을 막지 않는다 (best-effort 캐시).
+        console.error("geocode-cache 저장 실패:", e && e.message);
+    }
+}
+
 export default async function handler(request) {
     if (request.method === 'OPTIONS') {
         return new Response(null, {
@@ -136,12 +153,14 @@ export default async function handler(request) {
                     : `< ${jibunStr} >`;
             }
 
-            return new Response(JSON.stringify({
+            const responsePayload = {
                 road_address:  roadAddress,
                 jibun_address: jibunAddress,
                 display:       roadAddress.full,
                 display_line2: display_line2,
-            }), { status: 200, headers: HEADERS });
+            };
+            await saveLatestAddress(responsePayload);
+            return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
         }
 
         const jibunFull = jibunAddress?.full || null;
@@ -164,22 +183,26 @@ export default async function handler(request) {
                     const roadOnly = `${r1Full} ${hit.road_address.region_2depth_name} ${hit.road_address.road_name}`.trim();
                     const display_line2 = jibunStr ? `< ${jibunStr} >` : null;
 
-                    return new Response(JSON.stringify({
+                    const responsePayload = {
                         road_address:  roadAddress,
                         jibun_address: jibunAddress,
                         display:       roadOnly,
                         display_line2: display_line2,
-                    }), { status: 200, headers: HEADERS });
+                    };
+                    await saveLatestAddress(responsePayload);
+                    return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
                 }
             }
         } catch (_) {}
 
-        return new Response(JSON.stringify({
+        const fallbackPayload = {
             road_address:  null,
             jibun_address: jibunAddress,
             display:       jibunFull,
             display_line2: null,
-        }), { status: 200, headers: HEADERS });
+        };
+        await saveLatestAddress(fallbackPayload);
+        return new Response(JSON.stringify(fallbackPayload), { status: 200, headers: HEADERS });
 
     } catch (e) {
         return new Response(JSON.stringify({ error: '서버 내부 오류', detail: e.message }), { status: 500, headers: HEADERS });
