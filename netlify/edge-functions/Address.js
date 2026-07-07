@@ -1,16 +1,17 @@
 import { getStore } from '@netlify/blobs';
 
-const LATEST_KEY = 'geocode-latest';
-
-async function saveLatest(payload) {
+// 저장된 최신 주소 결과를 Netlify Blobs에 기록한다.
+// (데스크탑 폴링용 /api/geocode-latest 엔드포인트가 이 값을 읽는다.)
+// 저장이 실패해도 원래 응답에는 영향을 주지 않도록 항상 try-catch로 감싼다.
+async function saveLatestGeocode(payload) {
     try {
-        const store = getStore('location-cache');
-        await store.setJSON(LATEST_KEY, {
+        const store = getStore({ name: 'location-cache' });
+        await store.setJSON('geocode-latest', {
             data: payload,
-            savedAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         });
     } catch (e) {
-        // 저장 실패는 무시(응답 자체는 정상적으로 반환되어야 함)
+        // Blobs 저장 실패는 조용히 무시한다 (모바일 응답 자체는 정상 반환되어야 함).
     }
 }
 
@@ -152,14 +153,14 @@ export default async function handler(request) {
                     : `< ${jibunStr} >`;
             }
 
-            const payload = {
+            const responsePayload = {
                 road_address:  roadAddress,
                 jibun_address: jibunAddress,
                 display:       roadAddress.full,
                 display_line2: display_line2,
             };
-            await saveLatest(payload);
-            return new Response(JSON.stringify(payload), { status: 200, headers: HEADERS });
+            await saveLatestGeocode(responsePayload);
+            return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
         }
 
         const jibunFull = jibunAddress?.full || null;
@@ -182,14 +183,14 @@ export default async function handler(request) {
                     const roadOnly = `${r1Full} ${hit.road_address.region_2depth_name} ${hit.road_address.road_name}`.trim();
                     const display_line2 = jibunStr ? `< ${jibunStr} >` : null;
 
-                    const payload = {
+                    const responsePayload = {
                         road_address:  roadAddress,
                         jibun_address: jibunAddress,
                         display:       roadOnly,
                         display_line2: display_line2,
                     };
-                    await saveLatest(payload);
-                    return new Response(JSON.stringify(payload), { status: 200, headers: HEADERS });
+                    await saveLatestGeocode(responsePayload);
+                    return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
                 }
             }
         } catch (_) {}
@@ -200,7 +201,7 @@ export default async function handler(request) {
             display:       jibunFull,
             display_line2: null,
         };
-        await saveLatest(fallbackPayload);
+        await saveLatestGeocode(fallbackPayload);
         return new Response(JSON.stringify(fallbackPayload), { status: 200, headers: HEADERS });
 
     } catch (e) {
