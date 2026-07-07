@@ -1,8 +1,0 @@
-[[edge_functions]]
-  function = "Address"
-  path = "/api/geocode"
-
-[[edge_functions]]
-  function = "Address-Latest"
-  path = "/api/geocode-latest"
-
