@@ -3,5 +3,5 @@
   path = "/api/geocode"
 
 [[edge_functions]]
-  function = "Address"
+  function = "Address-latest"
   path = "/api/geocode-latest"
