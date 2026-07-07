@@ -1,17 +1,16 @@
-import { getStore } from "@netlify/blobs";
+import { getStore } from '@netlify/blobs';
 
-const LATEST_KEY = "latest";
+const LATEST_KEY = 'geocode-latest';
 
-async function saveLatestAddress(payload) {
+async function saveLatest(payload) {
     try {
-        const store = getStore("geocode-cache");
+        const store = getStore('location-cache');
         await store.setJSON(LATEST_KEY, {
-            ...payload,
-            savedAt: Date.now(),
+            data: payload,
+            savedAt: new Date().toISOString(),
         });
     } catch (e) {
-        // 저장 실패는 원래 응답 흐름을 막지 않는다 (best-effort 캐시).
-        console.error("geocode-cache 저장 실패:", e && e.message);
+        // 저장 실패는 무시(응답 자체는 정상적으로 반환되어야 함)
     }
 }
 
@@ -153,14 +152,14 @@ export default async function handler(request) {
                     : `< ${jibunStr} >`;
             }
 
-            const responsePayload = {
+            const payload = {
                 road_address:  roadAddress,
                 jibun_address: jibunAddress,
                 display:       roadAddress.full,
                 display_line2: display_line2,
             };
-            await saveLatestAddress(responsePayload);
-            return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
+            await saveLatest(payload);
+            return new Response(JSON.stringify(payload), { status: 200, headers: HEADERS });
         }
 
         const jibunFull = jibunAddress?.full || null;
@@ -183,14 +182,14 @@ export default async function handler(request) {
                     const roadOnly = `${r1Full} ${hit.road_address.region_2depth_name} ${hit.road_address.road_name}`.trim();
                     const display_line2 = jibunStr ? `< ${jibunStr} >` : null;
 
-                    const responsePayload = {
+                    const payload = {
                         road_address:  roadAddress,
                         jibun_address: jibunAddress,
                         display:       roadOnly,
                         display_line2: display_line2,
                     };
-                    await saveLatestAddress(responsePayload);
-                    return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
+                    await saveLatest(payload);
+                    return new Response(JSON.stringify(payload), { status: 200, headers: HEADERS });
                 }
             }
         } catch (_) {}
@@ -201,7 +200,7 @@ export default async function handler(request) {
             display:       jibunFull,
             display_line2: null,
         };
-        await saveLatestAddress(fallbackPayload);
+        await saveLatest(fallbackPayload);
         return new Response(JSON.stringify(fallbackPayload), { status: 200, headers: HEADERS });
 
     } catch (e) {
