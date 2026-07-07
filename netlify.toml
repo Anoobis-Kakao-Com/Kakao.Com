@@ -1,3 +1,11 @@
-[[edge_functions]]
-  function = "Address"
-  path = "/api/geocode"
+[[redirects]]
+  from = "/api/geocode"
+  to = "/.netlify/functions/geocode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/geocode-latest"
+  to = "/.netlify/functions/geocode-latest"
+  status = 200
+  force = true
