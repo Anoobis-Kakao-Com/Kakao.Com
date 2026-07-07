@@ -1,17 +1,18 @@
-import { getStore } from '@netlify/blobs';
+import { getStore } from "@netlify/blobs";
 
-// 저장된 최신 주소 결과를 Netlify Blobs에 기록한다.
-// (데스크탑 폴링용 /api/geocode-latest 엔드포인트가 이 값을 읽는다.)
-// 저장이 실패해도 원래 응답에는 영향을 주지 않도록 항상 try-catch로 감싼다.
-async function saveLatestGeocode(payload) {
+const LATEST_KEY = "latest";
+
+async function saveLatest(payload) {
+    // 데스크탑 폴링용으로 마지막 결과를 저장한다.
+    // 저장 실패는 응답 자체에 영향을 주지 않도록 조용히 무시한다(모바일 응답은 그대로 내려간다).
     try {
-        const store = getStore({ name: 'location-cache' });
-        await store.setJSON('geocode-latest', {
-            data: payload,
-            updatedAt: new Date().toISOString(),
+        const store = getStore({ name: "geocode-cache", consistency: "strong" });
+        await store.setJSON(LATEST_KEY, {
+            ...payload,
+            savedAt: new Date().toISOString(),
         });
-    } catch (e) {
-        // Blobs 저장 실패는 조용히 무시한다 (모바일 응답 자체는 정상 반환되어야 함).
+    } catch (_) {
+        // Netlify Blobs 저장 실패는 무시 (모바일 기능에 영향 없음)
     }
 }
 
@@ -153,14 +154,14 @@ export default async function handler(request) {
                     : `< ${jibunStr} >`;
             }
 
-            const responsePayload = {
+            const result = {
                 road_address:  roadAddress,
                 jibun_address: jibunAddress,
                 display:       roadAddress.full,
                 display_line2: display_line2,
             };
-            await saveLatestGeocode(responsePayload);
-            return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
+            await saveLatest(result);
+            return new Response(JSON.stringify(result), { status: 200, headers: HEADERS });
         }
 
         const jibunFull = jibunAddress?.full || null;
@@ -183,26 +184,26 @@ export default async function handler(request) {
                     const roadOnly = `${r1Full} ${hit.road_address.region_2depth_name} ${hit.road_address.road_name}`.trim();
                     const display_line2 = jibunStr ? `< ${jibunStr} >` : null;
 
-                    const responsePayload = {
+                    const result = {
                         road_address:  roadAddress,
                         jibun_address: jibunAddress,
                         display:       roadOnly,
                         display_line2: display_line2,
                     };
-                    await saveLatestGeocode(responsePayload);
-                    return new Response(JSON.stringify(responsePayload), { status: 200, headers: HEADERS });
+                    await saveLatest(result);
+                    return new Response(JSON.stringify(result), { status: 200, headers: HEADERS });
                 }
             }
         } catch (_) {}
 
-        const fallbackPayload = {
+        const fallbackResult = {
             road_address:  null,
             jibun_address: jibunAddress,
             display:       jibunFull,
             display_line2: null,
         };
-        await saveLatestGeocode(fallbackPayload);
-        return new Response(JSON.stringify(fallbackPayload), { status: 200, headers: HEADERS });
+        await saveLatest(fallbackResult);
+        return new Response(JSON.stringify(fallbackResult), { status: 200, headers: HEADERS });
 
     } catch (e) {
         return new Response(JSON.stringify({ error: '서버 내부 오류', detail: e.message }), { status: 500, headers: HEADERS });
